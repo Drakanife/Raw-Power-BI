@@ -1,0 +1,34 @@
+let
+    StartDate = #date(2023, 1, 1),
+    EndDate = #date(2028, 12, 31),
+    NumberOfDays = Duration.Days(EndDate - StartDate) + 1,
+    DateList = List.Dates(StartDate, NumberOfDays, #duration(1, 0, 0, 0)),
+    AddColumns = List.Transform(DateList, each [ 
+        Date = _,
+        Day = Date.Day(_),
+        Month = Date.Month(_),
+        Year = Date.Year(_),
+        StartOfMonth = Date.StartOfMonth(_),
+        Quarter = "Q" & Text.From(Date.QuarterOfYear(_)),
+        N_Date = Text.PadStart(Text.From(Date.Month(_)), 2, "0") & "/" & Text.End(Text.From(Date.Year(_)), 2),
+        N_Quy = "Q" & Text.From(Date.QuarterOfYear(_)) & "/" & Text.End(Text.From(Date.Year(_)), 2),
+        Week = "W" & Text.From(Date.WeekOfYear(_)) & "/" & Text.End(Text.From(Date.Year(_)), 2),
+        StartOfWeek = Date.From(Date.StartOfWeek(_, Day.Monday)),
+        week_date = Text.From(Date.Day(Date.StartOfWeek(_, Day.Monday))) & "/" & Text.From(Date.Month(Date.StartOfWeek(_, Day.Monday))),
+        FY = if Date.Month(_) >= 6 
+             then "FY" & Text.End(Text.From(Date.Year(_) + 1), 2) 
+             else "FY" & Text.End(Text.From(Date.Year(_)), 2),
+        Term = if Date.Month(_) >= 6 and Date.Month(_) <= 12 
+               then "Interim " & "FY" & Text.End(Text.From(Date.Year(_) + 1), 2) 
+               else if Date.Month(_) >= 1 and Date.Month(_) <= 5 
+               then "Final " & "FY" & Text.End(Text.From(Date.Year(_)), 2) 
+               else null
+    ]),
+    TableFromList = Table.FromRecords(AddColumns),
+    FinalTable = Table.TransformColumnTypes(TableFromList,{{"Date", type date}, {"Day", Int64.Type}, {"Month", Int64.Type}, {"Year", Int64.Type}, {"StartOfMonth", type date}, {"Quarter", type text}, {"N_Date", type text}, {"N_Quy", type text}, {"Week", type text}, {"FY", type text}, {"Term", type text}}),
+    #"Split Column by Delimiter" = Table.SplitColumn(FinalTable, "Term", Splitter.SplitTextByDelimiter(" ", QuoteStyle.Csv), {"Term.1", "Term.2"}),
+    #"Changed Type" = Table.TransformColumnTypes(#"Split Column by Delimiter",{{"Term.1", type text}, {"Term.2", type text}}),
+    #"Removed Columns" = Table.RemoveColumns(#"Changed Type",{"Term.2"}),
+    #"Changed Type1" = Table.TransformColumnTypes(#"Removed Columns",{{"StartOfWeek", type date}})
+in
+    #"Changed Type1"
